@@ -6,7 +6,7 @@ The plugin will monitor for changes in packages and rebuild the bundles accordin
 
 ```
 const webpackMerge = require('webpack-merge'); // used to merge webpack configs
-const commonConfig = require('./webpack.common.js'); // the settings that are common 
+const commonConfig = require('./webpack.common.js'); // the settings that are common
 
 
   new DllBundlesPlugin({
@@ -33,8 +33,6 @@ const commonConfig = require('./webpack.common.js'); // the settings that are co
       plugins: [] // DllBundlesPlugin will set the DllPlugin here
     })
   })
-  
-  
 ```
 
 > **webpackConfig** Accepts a path (string), webpack config object or webpack config object factory.  
@@ -56,3 +54,6 @@ Currently, the file name templates for dll's is locked, you can get a projected 
   - Move package resolution to webpack (now using node require)
   - Allow setting the template for file names.
   - Documentation
+
+## Coursera modifications
+Modified to support webpack 1.x (instead of webpack 2.x)

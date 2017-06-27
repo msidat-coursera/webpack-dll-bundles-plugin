@@ -2,6 +2,8 @@ const DllPlugin = require('webpack/lib/DllPlugin');
 const DllReferencePlugin = require('webpack/lib/DllReferencePlugin');
 
 import * as Path from 'path';
+import * as fs from 'fs';
+
 import { runWebpack } from './utils';
 
 import { DllBundlesPluginOptions, DllBundleConfig } from './interfaces';
@@ -20,24 +22,32 @@ export class DllBundlesPlugin {
   apply(compiler: any) {
     this.compiler = compiler;
 
-    const newPlugins = this.bundles.map( b => new DllReferencePlugin({
-        context: this.options.context,
-        manifest: Path.join(this.options.dllDir, `${b.name}-manifest.json`)
-      }));
-
-    newPlugins.forEach(p => p.apply(compiler));
-    compiler.options.plugins.push(...newPlugins);
-
     compiler.plugin('run', (compiler, next) => this.run(next) );
     compiler.plugin('watch-run', (compiler, next) => this.run(next) );
   }
 
+  applyPlugins() {
+    const {context} = this.options;
+
+    const newPlugins = this.bundles.map(bundle => {
+      const manifestPath = Path.join(this.options.dllDir, `${bundle.name}-manifest.json`);
+
+      if (fs.existsSync(manifestPath)) {
+        return new DllReferencePlugin({ manifest: require(manifestPath), context });
+      }
+    });
+
+    newPlugins.forEach(plugin => plugin.apply(this.compiler));
+    this.compiler.options.plugins.push(...newPlugins);
+  }
 
   run(next: (err?: Error) => any): void {
     console.info('DLL: Checking if DLLs are valid.');
+
     this.bundleControl.checkBundles()
       .then( bundles => {
         if (bundles.length === 0) {
+          this.applyPlugins();
           return console.info('DLL: All DLLs are valid.');
         } else {
           console.info('DLL: Rebuilding...');
@@ -67,7 +77,10 @@ export class DllBundlesPlugin {
 
           return runWebpack(webpackConfig).done
             .then( stats => this.bundleControl.saveBundleState() )
-            .then( () => console.info('DLL: Bundling done, all DLLs are valid.') );
+            .then( () => {
+              this.applyPlugins();
+              console.info('DLL: Bundling done, all DLLs are valid.');
+            });
         }
       })
       .then( () => next() )
