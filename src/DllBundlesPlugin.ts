@@ -70,9 +70,11 @@ export class DllBundlesPlugin {
           if (!webpackConfig.plugins) {
             webpackConfig.plugins = [];
           }
+
           webpackConfig.plugins.push(new DllPlugin({
             path: Path.join(this.options.dllDir, '[name]-manifest.json'),
             name: '[name]_lib',
+            context: this.options.context
           }));
 
           return runWebpack(webpackConfig).done

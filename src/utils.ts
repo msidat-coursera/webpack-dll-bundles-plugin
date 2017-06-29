@@ -16,10 +16,26 @@ export function resolveConfig(config: any): any {
   }
 }
 
-export function runWebpack(config: any): { compiler: Compiler, done: Promise<Stats> } {
-  const compiler = webpack(resolveConfig(config));
+export function runWebpack(config: any): { done: Promise<Stats> } {
   return {
-    compiler,
-    done: new Promise( (RSV, RJT) => compiler.run((err, stats) => err ? RJT(err) : RSV(stats)) )
+    done: new Promise( (RSV, RJT) => {
+      return webpack(resolveConfig(config), (err: any, stats: any) => {
+        if (err) {
+          console.error(err.stack || err);
+
+          if (err.details) {
+            console.error(err.details)
+          }
+        }
+
+        const info = stats.toJson();
+
+        if (stats.hasErrors()) {
+          console.error(info.errors);
+        }
+
+        return err ? RJT(err) : RSV(stats);
+      })
+    })
   }
 }

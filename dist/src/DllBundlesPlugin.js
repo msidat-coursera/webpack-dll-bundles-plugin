@@ -58,6 +58,7 @@ var DllBundlesPlugin = (function () {
                 webpackConfig.plugins.push(new DllPlugin({
                     path: Path.join(_this.options.dllDir, '[name]-manifest.json'),
                     name: '[name]_lib',
+                    context: _this.options.context
                 }));
                 return utils_1.runWebpack(webpackConfig).done
                     .then(function (stats) { return _this.bundleControl.saveBundleState(); })
