@@ -4,6 +4,8 @@ var findRoot = require('find-root');
 var jsonfile = require('jsonfile');
 var Path = require("path");
 var fs = require("fs");
+var crypto = require("crypto");
+var utils_1 = require("./utils");
 var PackageInfo = (function () {
     function PackageInfo(bundle, pkg) {
         this.bundle = bundle;
@@ -18,11 +20,46 @@ var PackageInfo = (function () {
     return PackageInfo;
 }());
 var BUNDLE_STATE_FILENAME = 'dll-bundles-state.json';
+var HASH_DIR_NAME = 'hash';
 var DllBundlesControl = (function () {
     function DllBundlesControl(bundles, options) {
         this.bundles = bundles;
         this.options = options;
     }
+    DllBundlesControl.prototype.getContents = function (watchPath, dllDir) {
+        var _this = this;
+        try {
+            if (fs.existsSync(watchPath)) {
+                if (fs.lstatSync(watchPath).isDirectory()) {
+                    if (watchPath.startsWith(dllDir)) {
+                        return '';
+                    }
+                    return fs
+                        .readdirSync(watchPath)
+                        .map(function (p) { return _this.getContents(Path.join(watchPath, p), _this.options.dllDir); })
+                        .join('');
+                }
+                else {
+                    return fs.readFileSync(watchPath, 'utf-8');
+                }
+            }
+        }
+        catch (e) {
+            console.log(e);
+            // Failed to read file, fallback to string
+            return '';
+        }
+    };
+    DllBundlesControl.prototype.getHash = function (bundleState) {
+        var _this = this;
+        var hash = crypto.createHash('md5');
+        hash.update(JSON.stringify(bundleState, null, 2));
+        if (this.options.watch) {
+            hash.update(this.options.watch.map(function (watchPath) { return _this.getContents(watchPath, _this.options.dllDir); }).join(''));
+        }
+        return hash.digest('hex');
+    };
+    ;
     /**
      * Check for bundles that requires a rebuild, based on the bundle configuration.
      * Returns the bundles that requires rebuild.
@@ -53,6 +90,14 @@ var DllBundlesControl = (function () {
                 .map(function (bundleName) { return _this.bundles.filter(function (bnd) { return bnd.name === bundleName; })[0]; });
         });
     };
+    DllBundlesControl.prototype.calculateBundleState = function (metadata) {
+        return metadata
+            .filter(function (m) { return !m.error; })
+            .reduce(function (state, pkg) {
+            state[pkg.name] = { bundle: pkg.bundle, version: pkg.version };
+            return state;
+        }, {});
+    };
     /**
      * Collect metadata from all packages in all bundles and save it to a file representing the current
      * state. File is saved in the `dllDir`.
@@ -62,13 +107,14 @@ var DllBundlesControl = (function () {
         var _this = this;
         return this.getMetadata()
             .then(function (metadata) {
-            var bundleState = metadata
-                .filter(function (m) { return !m.error; })
-                .reduce(function (state, pkg) {
-                state[pkg.name] = { bundle: pkg.bundle, version: pkg.version };
-                return state;
-            }, {});
+            var bundleState = _this.calculateBundleState(metadata);
+            var hash = _this.getHash(bundleState);
             fs.writeFileSync(Path.join(_this.options.dllDir, BUNDLE_STATE_FILENAME), JSON.stringify(bundleState, null, 2));
+            // remove any existing hashes
+            utils_1.deleteFolderRecursive(Path.join(_this.options.dllDir, HASH_DIR_NAME));
+            // store hash
+            fs.mkdirSync(Path.join(_this.options.dllDir, HASH_DIR_NAME));
+            fs.writeFileSync(Path.join(_this.options.dllDir, HASH_DIR_NAME, hash), hash);
         });
     };
     /**
@@ -115,6 +161,8 @@ var DllBundlesControl = (function () {
         var _this = this;
         return this.getMetadata() // get metadata for the required bundle configuration
             .then(function (packages) {
+            var hash = _this.getHash(_this.calculateBundleState(packages));
+            var hashMatches = fs.existsSync(Path.join(_this.options.dllDir, HASH_DIR_NAME, hash));
             var result = {
                 current: [],
                 changed: [],
@@ -122,7 +170,7 @@ var DllBundlesControl = (function () {
                 removed: [],
                 error: []
             };
-            var bundleState = _this.getBundleSate();
+            var bundleState = _this.getBundleState();
             var pkgCache = {
                 del: function (pkgInfo) {
                     delete bundleState[pkgInfo.name];
@@ -139,7 +187,7 @@ var DllBundlesControl = (function () {
                     pkgCache.del(pkgInfo);
                 }
                 else if (bundleState.hasOwnProperty(pkgInfo.name)) {
-                    if (bundleState[pkgInfo.name].version === pkgInfo.version) {
+                    if (bundleState[pkgInfo.name].version === pkgInfo.version && hashMatches) {
                         result.current.push(pkgInfo);
                     }
                     else {
@@ -169,7 +217,7 @@ var DllBundlesControl = (function () {
      * Load the last metadata state about all packages in all bundles
      * @returns BundleState
      */
-    DllBundlesControl.prototype.getBundleSate = function () {
+    DllBundlesControl.prototype.getBundleState = function () {
         if (fs.existsSync(Path.join(this.options.dllDir, BUNDLE_STATE_FILENAME))) {
             return jsonfile.readFileSync(Path.join(this.options.dllDir, BUNDLE_STATE_FILENAME));
         }

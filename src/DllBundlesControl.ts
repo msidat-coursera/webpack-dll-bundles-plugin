@@ -3,7 +3,9 @@ const jsonfile = require('jsonfile');
 
 import * as Path from 'path';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 
+import { deleteFolderRecursive } from './utils';
 import { DllBundleConfig, DllPackageConfig, DllBundlesPluginOptions } from './interfaces';
 
 interface BundleState {
@@ -36,11 +38,45 @@ class PackageInfo implements DllPackageConfig {
 }
 
 const BUNDLE_STATE_FILENAME: string = 'dll-bundles-state.json';
+const HASH_DIR_NAME: string = 'hash';
 
 export class DllBundlesControl {
 
-
   constructor(private bundles: DllBundleConfig[], private options: DllBundlesPluginOptions) { }
+
+  getContents(watchPath: string, dllDir: string) {
+    try {
+     if (fs.existsSync(watchPath)) {
+       if (fs.lstatSync(watchPath).isDirectory()) {
+         if (watchPath.startsWith(dllDir)) {
+           return '';
+         }
+
+         return fs
+           .readdirSync(watchPath)
+           .map(p => this.getContents(Path.join(watchPath, p), this.options.dllDir))
+           .join('');
+       } else {
+         return fs.readFileSync(watchPath, 'utf-8');
+       }
+     }
+   } catch (e) {
+     console.log(e);
+     // Failed to read file, fallback to string
+     return '';
+   }
+  }
+
+  getHash(bundleState: any) {
+    const hash = crypto.createHash('md5');
+    hash.update(JSON.stringify(bundleState, null, 2));
+
+    if (this.options.watch) {
+      hash.update(this.options.watch.map(watchPath => this.getContents(watchPath, this.options.dllDir)).join(''));
+    }
+
+    return hash.digest('hex');
+  };
 
   /**
    * Check for bundles that requires a rebuild, based on the bundle configuration.
@@ -78,6 +114,14 @@ export class DllBundlesControl {
       });
   }
 
+  calculateBundleState(metadata) {
+    return metadata
+      .filter( m => !m.error)
+      .reduce( (state, pkg) => {
+        state[pkg.name] = { bundle: pkg.bundle, version: pkg.version };
+        return state;
+      }, {} as any);
+  }
 
   /**
    * Collect metadata from all packages in all bundles and save it to a file representing the current
@@ -88,14 +132,17 @@ export class DllBundlesControl {
     return this.getMetadata()
       .then( metadata => {
 
-        const bundleState: BundleState = metadata
-          .filter( m => !m.error)
-          .reduce( (state, pkg) => {
-            state[pkg.name] = { bundle: pkg.bundle, version: pkg.version };
-            return state;
-          }, {} as any);
+        const bundleState: BundleState = this.calculateBundleState(metadata);
+        const hash = this.getHash(bundleState);
 
         fs.writeFileSync(Path.join(this.options.dllDir, BUNDLE_STATE_FILENAME), JSON.stringify(bundleState, null, 2));
+
+        // remove any existing hashes
+        deleteFolderRecursive(Path.join(this.options.dllDir, HASH_DIR_NAME));
+
+        // store hash
+        fs.mkdirSync(Path.join(this.options.dllDir, HASH_DIR_NAME));
+        fs.writeFileSync(Path.join(this.options.dllDir, HASH_DIR_NAME, hash), hash);
       });
   }
 
@@ -144,6 +191,9 @@ export class DllBundlesControl {
   private analyzeState(): Promise<AnalyzedState> {
     return this.getMetadata() // get metadata for the required bundle configuration
       .then( packages => {
+        const hash = this.getHash(this.calculateBundleState(packages));
+        const hashMatches = fs.existsSync(Path.join(this.options.dllDir, HASH_DIR_NAME, hash));
+
         const result = {
           current: [],
           changed: [],
@@ -152,7 +202,7 @@ export class DllBundlesControl {
           error: []
         };
 
-        const bundleState = this.getBundleSate();
+        const bundleState = this.getBundleState();
         const pkgCache = {
           del: (pkgInfo: PackageInfo) =>  {
             delete bundleState[pkgInfo.name];
@@ -162,7 +212,6 @@ export class DllBundlesControl {
           hist: []
         };
 
-
         // compare to the bundle state, i.e: the last state known
         // we have 4 possible outcomes for each package: No change, version change, added, removed.
         packages.forEach( pkgInfo => {
@@ -170,7 +219,7 @@ export class DllBundlesControl {
             result.error.push(pkgInfo);
             pkgCache.del(pkgInfo);
           } else if (bundleState.hasOwnProperty(pkgInfo.name)) { // if the old sate has this package:
-            if (bundleState[pkgInfo.name].version === pkgInfo.version) {
+            if (bundleState[pkgInfo.name].version === pkgInfo.version && hashMatches) {
               result.current.push(pkgInfo);
             } else {
               result.changed.push(pkgInfo);
@@ -202,7 +251,7 @@ export class DllBundlesControl {
    * Load the last metadata state about all packages in all bundles
    * @returns BundleState
    */
-  private getBundleSate(): BundleState {
+  private getBundleState(): BundleState {
     if (fs.existsSync(Path.join(this.options.dllDir, BUNDLE_STATE_FILENAME))) {
       return <any>jsonfile.readFileSync(Path.join(this.options.dllDir, BUNDLE_STATE_FILENAME));
     } else {

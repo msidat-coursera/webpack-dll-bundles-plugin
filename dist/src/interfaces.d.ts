@@ -7,6 +7,7 @@ export interface DllBundleConfig {
     packages: Array<string | DllPackageConfig>;
 }
 export interface DllBundlesPluginOptions {
+    watch: Array<string>;
     bundles: {
         [key: string]: Array<string | DllPackageConfig>;
     };

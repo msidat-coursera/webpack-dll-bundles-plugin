@@ -1,8 +1,22 @@
 import * as webpack from 'webpack';
+import * as fs from 'fs';
 
 export type Compiler = webpack.compiler.Compiler;
 export type Stats = webpack.compiler.Stats;
 
+export function deleteFolderRecursive(path): any {
+  if( fs.existsSync(path) ) {
+    fs.readdirSync(path).forEach(function(file,index){
+      var curPath = path + "/" + file;
+      if(fs.lstatSync(curPath).isDirectory()) { // recurse
+        deleteFolderRecursive(curPath);
+      } else { // delete file
+        fs.unlinkSync(curPath);
+      }
+    });
+    fs.rmdirSync(path);
+  }
+};
 
 export function resolveConfig(config: any): any {
   if(typeof config === 'string') {

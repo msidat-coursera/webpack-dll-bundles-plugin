@@ -3,12 +3,15 @@ export declare class DllBundlesControl {
     private bundles;
     private options;
     constructor(bundles: DllBundleConfig[], options: DllBundlesPluginOptions);
+    getContents(watchPath: string, dllDir: string): any;
+    getHash(bundleState: any): string;
     /**
      * Check for bundles that requires a rebuild, based on the bundle configuration.
      * Returns the bundles that requires rebuild.
      * @returns {Promise<DllBundleConfig[]>}
      */
     checkBundles(): Promise<DllBundleConfig[]>;
+    calculateBundleState(metadata: any): any;
     /**
      * Collect metadata from all packages in all bundles and save it to a file representing the current
      * state. File is saved in the `dllDir`.
@@ -39,7 +42,7 @@ export declare class DllBundlesControl {
      * Load the last metadata state about all packages in all bundles
      * @returns BundleState
      */
-    private getBundleSate();
+    private getBundleState();
     /**
      * Returns package json based on a URI.
      *
