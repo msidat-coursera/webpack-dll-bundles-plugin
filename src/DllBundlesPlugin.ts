@@ -59,6 +59,7 @@ export class DllBundlesPlugin {
 
           const webpackConfig = Object.assign({}, this.options.webpackConfig, {
             entry: newEntry,
+            watch: true,
             output: {
               path: this.options.dllDir,
               filename: '[name].dll.js',
