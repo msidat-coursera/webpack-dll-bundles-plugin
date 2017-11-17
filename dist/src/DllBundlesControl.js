@@ -6,7 +6,7 @@ var Path = require("path");
 var fs = require("fs");
 var crypto = require("crypto");
 var utils_1 = require("./utils");
-var PackageInfo = (function () {
+var PackageInfo = /** @class */ (function () {
     function PackageInfo(bundle, pkg) {
         this.bundle = bundle;
         if (typeof pkg === 'string') {
@@ -21,7 +21,7 @@ var PackageInfo = (function () {
 }());
 var BUNDLE_STATE_FILENAME = 'dll-bundles-state.json';
 var HASH_DIR_NAME = 'hash';
-var DllBundlesControl = (function () {
+var DllBundlesControl = /** @class */ (function () {
     function DllBundlesControl(bundles, options) {
         this.bundles = bundles;
         this.options = options;
@@ -248,7 +248,14 @@ var DllBundlesControl = (function () {
         }
     };
     DllBundlesControl.prototype.getPackageJsonPath = function (uri) {
-        var location = findRoot(require.resolve(uri));
+        var location = null;
+        if (uri.indexOf('bundles/') !== -1) {
+            // bundles should be resolved to the root package.json, not the bundle-level package.json
+            location = findRoot(require.resolve(uri), function (dir) { return (fs.existsSync(Path.resolve(dir, '.git'))); });
+        }
+        else {
+            location = findRoot(require.resolve(uri));
+        }
         return Path.join(location, 'package.json');
         // if (fs.statSync(location).isDirectory()) {
         //   return Path.join(location, 'package.json');

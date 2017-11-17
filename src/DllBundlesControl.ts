@@ -284,7 +284,13 @@ export class DllBundlesControl {
   }
 
   private getPackageJsonPath(uri: string): string {
-    const location = findRoot(require.resolve(uri));
+    let location = null;
+    if (uri.indexOf('bundles/') !== -1) {
+      // bundles should be resolved to the root package.json, not the bundle-level package.json
+      location = findRoot(require.resolve(uri), dir => (fs.existsSync(Path.resolve(dir, '.git'))));
+    } else {
+      location = findRoot(require.resolve(uri))
+    }
     return Path.join(location, 'package.json');
 
     // if (fs.statSync(location).isDirectory()) {
