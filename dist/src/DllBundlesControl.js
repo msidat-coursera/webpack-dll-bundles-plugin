@@ -248,6 +248,7 @@ var DllBundlesControl = /** @class */ (function () {
         }
     };
     DllBundlesControl.prototype.getPackageJsonPath = function (uri) {
+        console.log(uri);
         var location = findRoot(require.resolve(uri), function (dir) { return (fs.existsSync(Path.resolve(dir, '.git'))); });
         return Path.join(location, 'package.json');
         // if (fs.statSync(location).isDirectory()) {

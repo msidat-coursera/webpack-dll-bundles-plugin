@@ -284,6 +284,7 @@ export class DllBundlesControl {
   }
 
   private getPackageJsonPath(uri: string): string {
+    console.log(uri)
     const location = findRoot(require.resolve(uri), dir => (fs.existsSync(Path.resolve(dir, '.git'))));
     return Path.join(location, 'package.json');
 
