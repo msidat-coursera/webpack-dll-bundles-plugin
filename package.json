@@ -1,7 +1,7 @@
 {
   "name": "webpack-dll-bundles-plugin",
-  "version": "1.0.3",
-  "description": "A Webpack plugin for bundling group of packages as DLLs",
+  "version": "1.0.4",
+  "description": "A Webpack plugin for bundling group of packages as DLLs - msidat-coursera",
   "main": "dist/index.js",
   "typings": "index.d.ts",
   "author": "Shlomi Assaf <shlomiasaf@gmail.com>",
