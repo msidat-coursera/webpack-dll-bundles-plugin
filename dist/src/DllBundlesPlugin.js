@@ -6,7 +6,7 @@ var Path = require("path");
 var fs = require("fs");
 var utils_1 = require("./utils");
 var DllBundlesControl_1 = require("./DllBundlesControl");
-var DllBundlesPlugin = (function () {
+var DllBundlesPlugin = /** @class */ (function () {
     function DllBundlesPlugin(options) {
         this.setOptions(options);
     }
